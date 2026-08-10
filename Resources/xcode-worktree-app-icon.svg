@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1024"
+     height="1024"
+     viewBox="0 0 1024 1024"
+     fill="none">
+  <title>Xcode Worktree app icon</title>
+  <defs>
+    <linearGradient id="tile" x1="220" y1="145" x2="815" y2="905" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#20262c"/>
+      <stop offset="0.54" stop-color="#11171c"/>
+      <stop offset="1" stop-color="#080c0f"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="512" y1="100" x2="512" y2="924" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4b535b"/>
+      <stop offset="0.42" stop-color="#232b31"/>
+      <stop offset="1" stop-color="#050709"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffe39a"/>
+      <stop offset="0.48" stop-color="#f5c96d"/>
+      <stop offset="1" stop-color="#e9aa3f"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="455" y1="338" x2="570" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#74b8ff"/>
+      <stop offset="1" stop-color="#397dff"/>
+    </linearGradient>
+    <filter id="tile-shadow" x="35" y="55" width="954" height="954" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#000000" flood-opacity="0.48"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#tile-shadow)">
+    <rect x="100" y="82" width="824" height="824" rx="190" fill="url(#tile)"/>
+    <rect x="101.5" y="83.5" width="821" height="821" rx="188.5" stroke="url(#edge)" stroke-width="3"/>
+    <path d="M262 124C201 146 151 196 127 256" stroke="#ffffff" stroke-opacity="0.08" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(236 211) scale(23)"
+     stroke="url(#gold)"
+     stroke-width="1.65"
+     stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M12 1.2L21 5.8L12 10.4L3 5.8Z"/>
+    <path d="M12 6.6L21 11.2L12 15.8L3 11.2Z"/>
+    <path d="M12 12L21 16.6L12 21.2L3 16.6Z"/>
+    <path d="M12 21.2V7.6L7.6 4.5M12 7.6L16.4 4.5"/>
+    <g fill="url(#gold)" stroke="none">
+      <circle cx="7.6" cy="4.5" r="1.2"/>
+      <circle cx="16.4" cy="4.5" r="1.2"/>
+    </g>
+  </g>
+
+  <path d="M466 364L512 405L558 364"
+        stroke="url(#blue)"
+        stroke-width="16"
+        stroke-linecap="square"
+        stroke-linejoin="miter"/>
+</svg>

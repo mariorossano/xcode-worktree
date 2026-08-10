@@ -1,0 +1,4 @@
+interface:
+  display_name: "Xcode Worktree"
+  short_description: "Isolated Xcode worktrees and DerivedData"
+  default_prompt: "Use $xcode-worktree to create an isolated Xcode worktree for this task."
