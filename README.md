@@ -186,12 +186,14 @@ Each worktree gets its own `xcode-worktree/<task>-<id>` branch. Git and the
 filesystem remain the source of truth; the app has no worktree registry,
 daemon, lease protocol, or activity tracking.
 
-Before an Xcode build, the skill verifies an ignored DerivedData directory
-inside the selected checkout and applies that path to the build interface. For
-XcodeBuildMCP it reads the live session defaults, sets the worktree project or
-workspace and `derivedDataPath` with `persist: false`, then verifies the result.
-If a build integration cannot configure and verify its output path, the agent
-stops before building instead of claiming isolation.
+Before any Xcode project action—including discovery, dependency resolution,
+build, test, or run—the skill verifies that both the selected project or
+workspace and DerivedData are inside the worktree. It applies those paths using
+temporary interface settings and restores any changed state before release.
+For XcodeBuildMCP it reads the live session defaults, sets the worktree project
+or workspace and `derivedDataPath` with `persist: false`, then verifies the
+result. If a build integration cannot configure and verify both its input and
+output paths, the agent stops instead of claiming isolation.
 
 The Git lifecycle also works for non-Xcode repositories. Automatic build-cache
 isolation and cleanup cover only Xcode DerivedData; other build systems remain

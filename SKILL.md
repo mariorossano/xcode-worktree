@@ -1,6 +1,6 @@
 ---
 name: xcode-worktree
-description: Create, use, inspect, measure, resume, or release durable Git worktrees for Xcode agent tasks, with Xcode DerivedData isolated inside each checkout. Use whenever the user explicitly asks Claude or Codex for an isolated Xcode worktree, asks to use, inspect, measure, or release one, or a session starts inside an already registered Xcode worktree. Do not create or release a worktree merely because a session starts, resumes, clears, compacts, or finishes a task.
+description: Create, use, inspect, measure, resume, or release durable Git worktrees for Xcode agent tasks, with Xcode DerivedData isolated inside each checkout. Use whenever the user explicitly asks Claude or Codex for an isolated Xcode worktree, asks to use, inspect, measure, or release one, or a session starts inside an already registered Xcode worktree. Also use before any Xcode interface invocation that may load, inspect, discover, list, resolve, build, test, or run a project when a managed worktree was created, resumed, or selected earlier in the current session. Do not create or release a worktree merely because a session starts, resumes, clears, compacts, or finishes a task.
 ---
 
 # Manage Xcode worktrees
@@ -19,6 +19,10 @@ DerivedData. For another build system, do not claim that caches or build output
 are isolated unless its project-specific paths have been inspected and kept
 inside the worktree.
 
+In this skill, an **Xcode project action** is any agent-controlled interface
+invocation that may load, inspect, discover, list, resolve, build, test, or run
+an Xcode project or workspace.
+
 ## Interpret the request
 
 - Create a new worktree only when the user explicitly requests a new worktree or isolated checkout.
@@ -30,10 +34,57 @@ inside the worktree.
 - For parallel implementation variants, create one independent worktree and branch per variant. Resolve all variants from the same commit when the user is comparing equivalent approaches; never base one variant on another.
 - Treat each worktree as single-writer. Never assign or resume the same worktree for concurrent agents; give each agent its own variant. An explicit release means the user considers every agent using that exact worktree finished. If known activity contradicts that, stop.
 - From outside the managed worktree, resume an existing one only when the user
-  explicitly asks to resume or use it.
+  explicitly asks to resume or use it, or when it qualifies for exact-ref reuse
+  under the session-binding rules below.
 - Release a worktree only when the user explicitly asks to release, remove, or discard it.
 - Do not interpret task completion, a push, session exit, `clear`, resume, or compaction as release.
-- Ask the user to choose when more than one existing worktree matches and no exact path is given.
+- Ask the user to choose when more than one eligible session-recorded worktree matches and no exact path is given.
+
+## Keep the selected worktree bound to the session
+
+Record the exact path of every managed worktree this session creates, resumes,
+or explicitly selects. Creating, resuming, or explicitly selecting a managed
+worktree makes its exact path active. Bind later task actions to that active
+path across prompts, subtasks, verification requests, compaction, and tool or
+build-interface changes. Shell, editor, and integration defaults never change
+the active path.
+
+A later request for a Git ref may select another recorded worktree only when
+exactly one candidate passes fresh checks: it is registered at the exact path
+in the same Git common directory, `git symbolic-ref --short HEAD` confirms an
+attached branch, `HEAD` equals the resolved target commit,
+`git status --porcelain=v1 --untracked-files=all` is empty, no other known agent
+is using it, and no active build is using it. Reusing that verified candidate is
+allowed because the session selected it earlier. A matching worktree merely
+discovered on disk is not eligible; never infer session history or ownership
+from its ref or path. Ask the user to choose if more than one eligible recorded
+candidate passes these checks.
+
+Verified exact-ref reuse also makes the matched worktree active. Releasing a
+worktree clears the active path only when the released worktree is the active
+one. Do not guess a replacement from shell or build-interface defaults. Before
+every Xcode project action, recover the selected path from session context,
+validate its exact Git registration, and stop if the selection is missing or
+ambiguous.
+
+## Keep managed branches attached and stable
+
+Keep `HEAD` attached to the branch registered for each managed worktree for its
+entire lifetime. Never detach `HEAD` to inspect, build, test, or run a tag or
+commit.
+
+When a later request names another Git ref, resolve it to one commit. Keep using
+the active worktree if its `HEAD` already equals that commit. Otherwise select
+one exact recorded candidate only through the checks above. If none qualifies,
+stop with every existing worktree unchanged and ask whether the user wants a
+fresh managed worktree for the target. A request merely to build, test, or run
+another ref is not approval to create that worktree, and neither is a worktree
+request or approval from earlier in the same session. Wait for an affirmative
+response specific to this new creation before proceeding.
+
+Do not merge, rebase, checkout, reset, detach, or move an existing managed
+branch merely to satisfy a later ref request. Do not invent a branch or create
+another worktree without the user's explicit approval.
 
 ## Use the managed root
 
@@ -85,6 +136,14 @@ When no repository context is available, require an explicit repository/path or 
    protected file contents or rely only on the current working tree. If no
    applied filter is `git-crypt` or starts with `git-crypt-`, continue with the
    normal creation in step 7 and do not require `git-crypt` to be installed.
+
+   **Protected-content hard stop:** during detection, setup, and verification,
+   never read or parse a protected path to verify decryption. Do not use `cat`,
+   `head`, `tail`, `strings`, `file`, `plutil`, a preview, a parser, or another
+   content-reading command for that check. Use Git attributes and filter state,
+   command results, `git status`, and file metadata that does not expose file
+   bytes.
+
    When the default `git-crypt` filter applies:
 
    - require `git-crypt` to be available;
@@ -164,38 +223,89 @@ default `.claude/worktrees` creator.
 
 Keep the session anchored to its original checkout. Set each tool's `workdir` to the managed worktree or use absolute paths. Never create a temporary worktree to work around sandbox permissions.
 
-## Keep Xcode DerivedData inside the worktree
+## Keep Xcode build context and DerivedData inside the worktree
 
-Apply this section whenever the task builds an Xcode project or workspace. For
-a non-Xcode build, do not invent a DerivedData path: retain the Git lifecycle
-rules, inspect that build system separately, and state which local or external
-outputs are not isolated.
+Apply this section to every Xcode project action. The isolation contract belongs
+to the selected worktree, not to any particular build interface. For a non-Xcode
+build, do not invent a DerivedData path: retain the Git lifecycle rules, inspect
+that build system separately, and state which local or external outputs are not
+isolated.
 
-For each agent-controlled build, determine the effective output path before building:
+Before the first Xcode project action after selecting a worktree, perform this
+preflight:
 
-1. Keep a path already configured by the repository only when its normalized absolute path and nearest existing ancestor both resolve inside this worktree, no existing path component is a symlink, and `git ls-files -- <relative-path>` reports no tracked content below it.
-2. Otherwise apply the same checks to `<worktree>/DerivedData`. Verify its directory ignore rule before it exists with `git check-ignore --no-index <effective-path>/`, including the trailing slash; do not create a probe.
-3. If no internal ignored path is available, stop before the build and ask permission to add an appropriate ignore rule. Never silently edit `.gitignore` or invent an external fallback.
+1. Determine the checkout, project, or workspace input the interface will
+   actually use. Require every explicit path to resolve inside the selected
+   worktree. If the interface discovers inputs from its current directory,
+   require that directory to resolve inside the selected worktree. Inspect and
+   override any live or persisted interface defaults that point elsewhere.
+2. Keep a DerivedData path already configured by the repository only when its
+   normalized absolute path and nearest existing ancestor both resolve inside
+   the selected worktree, no existing path component is a symlink, and
+   `git ls-files -- <relative-path>` reports no tracked content below it.
+3. Otherwise apply the same checks to `<worktree>/DerivedData`. Verify its
+   directory ignore rule before it exists with
+   `git check-ignore --no-index <effective-path>/`, including the trailing
+   slash; do not create a probe.
+4. If no internal ignored path is available, stop before the build and ask
+   permission to add an appropriate ignore rule. Never silently edit
+   `.gitignore` or invent an external fallback.
+5. Configure both the input context and effective DerivedData path through the
+   interface's supported per-invocation or non-persistent session settings.
+   Re-read live settings when the interface exposes them; otherwise inspect the
+   exact invocation. Verify both normalized paths before allowing the build,
+   test, or run to begin.
 
-Apply the effective DerivedData path to every Xcode build interface. Inspect the interface's live
-defaults or supported configuration before invoking it, use a per-invocation or
-non-persistent session override, and verify that the normalized effective output
-path remains inside the current worktree. If a build wrapper, plugin, or MCP does
-not expose a way to control and verify its output location, stop before building
-and report that isolation cannot be guaranteed; never silently use a shared
-external cache.
+Before the first task-specific mutation of any stateful external interface,
+read and retain the exact pre-task value of every setting the task may change;
+treat an unset value as a value. If a setting cannot be read, use an
+invocation-scoped configuration that leaves no state behind or stop before
+mutating it. Do not reconstruct the prior state later from defaults, labels,
+aliases, or other apparently equivalent selectors.
+
+If a build wrapper, plugin, MCP, editor, or other integration does not expose a
+way to control and verify both its checkout input and output location, stop
+before building and report that isolation cannot be guaranteed. Never accept a
+tool-chosen external cache merely because it is per-project or has a unique
+name.
+
+Discovery, listing, settings inspection, and dependency resolution can
+initialize caches even when an interface presents them as read-only. Apply the
+same output-path requirement to those operations. If a discovery form cannot
+accept or verify the internal output path, inspect repository metadata through
+non-Xcode tools or stop; do not invoke it with an external default merely to
+learn the configuration needed for a later isolated build.
+
+**Hard stop for raw `xcodebuild` discovery:** never run `xcodebuild -list`,
+`xcodebuild -showBuildSettings`, or `xcodebuild -resolvePackageDependencies`
+unless that exact invocation includes a verified worktree-local
+`-derivedDataPath`. If the form cannot accept that path before a scheme or other
+input is known, inspect repository metadata with non-Xcode tools or stop.
 
 Known interface mappings include:
 
-- raw `xcodebuild`: pass `-derivedDataPath <effective-path>`;
-- Fastlane: use its internal ignored `derived_data_path`, or override it with the effective path;
+- raw `xcodebuild`: invoke it from the selected worktree, keep any explicit
+  `-workspace` or `-project` path inside it, and pass
+  `-derivedDataPath <effective-path>`. Some discovery forms require a known
+  scheme before accepting this option; derive it from repository metadata or
+  stop instead of running unscoped discovery;
+- Fastlane: invoke the lane from the selected worktree and use its internal
+  ignored `derived_data_path`, or override it with the effective path;
 - XcodeBuildMCP: follow its installed skill, call `session_show_defaults`, then set the worktree `workspacePath` or `projectPath` plus `derivedDataPath` with `persist: false`.
 
 For another Xcode MCP or build integration, inspect its own capabilities and use
 its equivalent workspace/project and DerivedData settings. Do not assume
 that an option name or behavior from XcodeBuildMCP applies to a different tool.
 
-After switching worktrees, re-check XcodeBuildMCP defaults before every first build/test action. Restore prior session defaults before release when available. Never persist a worktree path that will later be removed.
+Repeat the generic preflight before the first Xcode project action introduced by
+each later prompt or subtask, and whenever the selected worktree, input,
+interface, or configuration changes. Consecutive actions may reuse verified,
+unchanged checkout and DerivedData configuration. This reuse never replaces an
+operation-specific external-resource ownership or lease check required by
+another skill or interface. Before release, restore every task-mutated
+temporary interface setting through its owning interface; invocation-scoped
+configuration that leaves no state behind requires no restoration. Never
+persist a worktree path that will later be removed.
 
 Treat other ignored Xcode build products as managed only when they remain inside
 the worktree. Report any tool or script that writes outside; do not promise to
@@ -217,7 +327,29 @@ Treat an explicit release request as authorization to discard staged, unstaged, 
 3. If filesystem and Git registration disagree, stop without manual cleanup.
 4. Record its branch and `HEAD`. Refuse release if it is the main worktree, its canonical path lies outside the canonical managed root, its managed repo parent or leaf is a symlink, it belongs to another Git common directory, it is not registered at the exact path, or it no longer has a branch to preserve.
 5. Run `git status --porcelain=v1 --untracked-files=all` in the worktree and summarize tracked and untracked content that will be discarded; use `-z` if names are parsed mechanically. State that ignored content is also discarded but intentionally not exhaustively enumerated. Report known internal Xcode DerivedData directories by checking only whether they exist; do not recursively enumerate ignored files or measure them unless the user asked for a size measurement.
-6. While the path still exists, complete and verify all known task cleanup: stop task processes, release task-owned external resources, and restore temporary tool state through their owning interfaces. Ignore unrelated integrations and ambiguous ownership; preserve the worktree if required cleanup fails.
+6. While the path still exists, complete and verify all known task cleanup in
+   this order:
+   - stop task processes and release task-owned external resources;
+   - for every task-mutated setting, derive its expected final state from the
+     pre-task snapshot: restore the exact recorded value, or clear it when the
+     snapshot recorded it as unset or that exact value would become invalid
+     after worktree removal;
+   - do not substitute a label, alias, current default, or other apparently
+     equivalent selector for an exact recorded value;
+   - include checkout, project, or workspace inputs; output and cache paths;
+     reserved device or resource identifiers; and injected environment state;
+   - immediately after the restore or clear operations, re-read the interface's
+     live state and compare every changed setting with its expected final state.
+     A successful write or clear call is not verification. An exact recorded
+     pre-task value that remains valid after cleanup counts as restored even if
+     the task later reserved and released that same resource, and is exempt from
+     the released-resource check below;
+   - require that no remaining task-controlled setting references the selected
+     worktree, its internal outputs, or a released task resource.
+
+   Ignore unrelated integrations and ambiguous ownership;
+   preserve the worktree if required cleanup fails, including when it cannot be
+   inspected, restored, cleared, read back, or matched exactly; stop.
 7. As the last state-changing action, remove exactly the registered path with:
 
    ```bash

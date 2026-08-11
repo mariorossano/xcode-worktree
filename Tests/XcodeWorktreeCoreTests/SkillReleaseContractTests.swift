@@ -28,6 +28,60 @@ final class SkillReleaseContractTests: XCTestCase {
         XCTAssertTrue(releaseSection.contains("After removal, perform only read-only verification"))
     }
 
+    func testSkillRestoresAndVerifiesTemporaryInterfaceStateBeforeRemoval() throws {
+        let skill = try String(contentsOf: packageRoot.appendingPathComponent("SKILL.md"), encoding: .utf8)
+        let releaseSectionStart = try XCTUnwrap(skill.range(of: "## Release a worktree"))
+        let releaseSection = String(skill[releaseSectionStart.lowerBound...])
+
+        let restore = try XCTUnwrap(
+            releaseSection.range(of: "restore the exact recorded value")
+        )
+        let verify = try XCTUnwrap(
+            releaseSection.range(of: "re-read the interface's")
+        )
+        let removal = try XCTUnwrap(
+            releaseSection.range(of: "git worktree remove --force")
+        )
+
+        XCTAssertLessThan(
+            releaseSection.distance(from: releaseSection.startIndex, to: restore.lowerBound),
+            releaseSection.distance(from: releaseSection.startIndex, to: removal.lowerBound)
+        )
+        XCTAssertLessThan(
+            releaseSection.distance(from: releaseSection.startIndex, to: verify.lowerBound),
+            releaseSection.distance(from: releaseSection.startIndex, to: removal.lowerBound)
+        )
+        XCTAssertTrue(releaseSection.contains("checkout, project, or workspace inputs"))
+        XCTAssertTrue(releaseSection.contains("output and cache paths"))
+        XCTAssertTrue(releaseSection.contains("reserved device or resource identifiers"))
+        XCTAssertTrue(releaseSection.contains("injected environment state"))
+        XCTAssertTrue(releaseSection.contains("pre-task snapshot"))
+        XCTAssertTrue(releaseSection.contains("do not substitute a label, alias, current default"))
+        XCTAssertTrue(releaseSection.contains("A successful write or clear call is not verification"))
+        XCTAssertTrue(releaseSection.contains("live state and compare every changed setting"))
+        XCTAssertTrue(releaseSection.contains("compare every changed setting with its expected final state"))
+        XCTAssertNotNil(
+            releaseSection.range(
+                of: #"is exempt from\s+the released-resource check below"#,
+                options: .regularExpression
+            )
+        )
+        XCTAssertTrue(releaseSection.contains("read back, or matched exactly"))
+        XCTAssertTrue(releaseSection.contains("preserve the worktree"))
+        XCTAssertFalse(releaseSection.contains("the prior value was unavailable"))
+        XCTAssertFalse(releaseSection.contains("XcodeBuildMCP"))
+    }
+
+    func testSkillCapturesExactExternalStateBeforeFirstMutation() throws {
+        let skill = try String(contentsOf: packageRoot.appendingPathComponent("SKILL.md"), encoding: .utf8)
+
+        XCTAssertTrue(skill.contains("Before the first task-specific mutation of any stateful external interface"))
+        XCTAssertTrue(skill.contains("read and retain the exact pre-task value of every setting"))
+        XCTAssertTrue(skill.contains("treat an unset value as a value"))
+        XCTAssertTrue(skill.contains("invocation-scoped configuration that leaves no state behind or stop"))
+        XCTAssertTrue(skill.contains("Do not reconstruct the prior state later from defaults, labels"))
+    }
+
     func testGenericPathBoundResourceIsReleasedBeforeItsWorktreeDisappears() throws {
         let fixture = try makeFixture()
         defer { try? fileManager.removeItem(at: fixture.container) }
