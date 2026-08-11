@@ -47,10 +47,11 @@ ownership.
 
 ### Automatic installation
 
-Clone this repository into a durable location, then run:
+Clone this repository into a durable location, then install:
 
 ```bash
-cd /path/to/xcode-worktree
+git clone https://github.com/mariorossano/xcode-worktree.git
+cd xcode-worktree
 make install
 ```
 
