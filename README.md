@@ -11,10 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mariorossano/xcode-worktree/actions/workflows/ci.yml">
-    <img src="https://github.com/mariorossano/xcode-worktree/actions/workflows/ci.yml/badge.svg"
-         alt="CI">
-  </a>
+  <a href="https://github.com/mariorossano/xcode-worktree/actions/workflows/ci.yml"><img src="https://github.com/mariorossano/xcode-worktree/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/macOS-14.5%2B-000000?logo=apple&logoColor=white"
        alt="macOS 14.5 or newer">
   <img src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white"
