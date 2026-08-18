@@ -26,8 +26,8 @@
 
 Coding agents were already avoiding Xcode cache conflicts by assigning a
 different DerivedData path to each parallel task. The problem was placement:
-different tools and sessions scattered worktrees and build output around the
-filesystem, consuming disk space and leaving external caches outside the view
+different tools and sessions scattered worktrees and DerivedData around the
+filesystem, consuming disk space and leaving those caches outside the view
 of Git clients. In the worst case, active work placed under `/tmp` disappeared
 after a reboot.
 
@@ -64,9 +64,9 @@ Codex and the default Claude profile, when that profile exists.
 <summary>Automatic installation details</summary>
 
 The installer links the repository rather than creating an independent skill
-copy, so `SKILL.md` and `agents/openai.yaml` remain the sources of truth. It
-refuses to replace an unrelated existing skill or an application with a
-different bundle identifier.
+copy, so `SKILL.md`, `references/`, and `agents/openai.yaml` remain the sources
+of truth. It refuses to replace an unrelated existing skill or an application
+with a different bundle identifier.
 
 For an additional Claude profile, pass its exact directory. Spaces and other
 ordinary path characters are preserved:
@@ -98,18 +98,22 @@ Then:
    location you prefer.
 2. Copy the skill files into every agent or profile that should use the
    workflow:
-   - For Codex, copy `SKILL.md` and `agents/openai.yaml`. The YAML file provides
-     Codex's UI metadata.
-   - For Claude, copy `SKILL.md`.
+   - For both agents, copy `SKILL.md` together with the complete `references/`
+     directory.
+   - For Codex, also copy `agents/openai.yaml`. The YAML file provides Codex's
+     UI metadata.
 
 Common user-level destinations are:
 
 | Agent | Source | Destination |
 | --- | --- | --- |
 | Codex | `SKILL.md` | `~/.agents/skills/xcode-worktree/SKILL.md` |
+| Codex | `references/` | `~/.agents/skills/xcode-worktree/references/` |
 | Codex | `agents/openai.yaml` | `~/.agents/skills/xcode-worktree/agents/openai.yaml` |
 | Claude | `SKILL.md` | `~/.claude/skills/xcode-worktree/SKILL.md` |
+| Claude | `references/` | `~/.claude/skills/xcode-worktree/references/` |
 | Claude with `CLAUDE_CONFIG_DIR` | `SKILL.md` | `<CLAUDE_CONFIG_DIR>/skills/xcode-worktree/SKILL.md` |
+| Claude with `CLAUDE_CONFIG_DIR` | `references/` | `<CLAUDE_CONFIG_DIR>/skills/xcode-worktree/references/` |
 
 Both agents also support repository-scoped skills. Use the equivalent
 `.agents/skills` or `.claude/skills` directory inside a repository when the
@@ -129,14 +133,23 @@ agent if a newly created top-level skills directory is not detected.
 
 3. The skill creates the checkout, keeps Xcode DerivedData inside it, and runs
    the task there. The worktree appears automatically in the menu-bar app.
+
+> [!IMPORTANT]
+> Keep one agent session on one worktree. Xcode Worktree does not lock agents
+> or reliably detect active writers, so stop the original agent and its builds
+> before reopening the checkout elsewhere. For another ref or parallel task,
+> start a new agent with its own worktree.
+
 4. When the task is finished, release it in one of two ways:
 
    - **From the same Terminal session:** ask the agent to
      `Release this worktree and the resources used by this task`. Use this route
-     when the task also acquired a simulator or another external resource.
-   - **From the app:** choose `Remove` for a clean checkout, or
-     `Commit & Remove` to preserve current changes before removal. The app
-     manages the checkout and its local Xcode build output only.
+     when another tool must clean up from the checkout before it disappears;
+     each tool follows its own workflow, then Xcode Worktree removes the
+     checkout last.
+    - **From the app:** choose `Remove` for a clean checkout, or
+      `Commit & Remove` to preserve current changes before removal. The app
+      manages the checkout and its worktree-local DerivedData only.
 
 ## The menu-bar board
 
@@ -168,9 +181,8 @@ run through the user's interactive shell, so functions and aliases work too.
 The exact command is stored locally; do not put credentials or other secrets in
 command-line arguments.
 
-Launching an agent does not make one checkout safe for multiple writers. Give
-each parallel agent its own worktree. An agent launched from the board starts
-with the selected worktree as its current directory.
+An agent launched from the board starts with the selected worktree as its
+current directory. Do not launch a second writer for the same checkout.
 
 </details>
 
@@ -188,12 +200,16 @@ daemon, lease protocol, or activity tracking.
 
 Before any Xcode project action—including discovery, dependency resolution,
 build, test, or run—the skill verifies that both the selected project or
-workspace and DerivedData are inside the worktree. It applies those paths using
-temporary interface settings and restores any changed state before release.
+workspace and DerivedData are inside the worktree. The skill points Xcode tools
+to the project and DerivedData inside the worktree without saving those paths
+permanently. Before release it restores or clears any temporary paths it
+changed.
+
 For XcodeBuildMCP it reads the live session defaults, sets the worktree project
 or workspace and `derivedDataPath` with `persist: false`, then verifies the
-result. If a build integration cannot configure and verify both its input and
-output paths, the agent stops instead of claiming isolation.
+result. If a build integration cannot configure and verify both the selected
+project or workspace and DerivedData, the agent stops instead of claiming
+isolation.
 
 The Git lifecycle also works for non-Xcode repositories. Automatic build-cache
 isolation and cleanup cover only Xcode DerivedData; other build systems remain
