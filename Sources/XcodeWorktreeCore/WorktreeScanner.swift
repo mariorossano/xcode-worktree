@@ -88,7 +88,9 @@ public struct WorktreeScanner: Sendable {
         }
 
         items.sort {
-            if $0.health != $1.health { return $0.health == .valid }
+            if $0.health != $1.health {
+                return healthSortOrder($0.health) < healthSortOrder($1.health)
+            }
             if $0.repository != $1.repository { return $0.repository.localizedStandardCompare($1.repository) == .orderedAscending }
             return $0.task.localizedStandardCompare($1.task) == .orderedAscending
         }
@@ -173,11 +175,17 @@ public struct WorktreeScanner: Sendable {
         let status = try git(["status", "--porcelain=v1", "--untracked-files=normal"], at: candidate)
         let isDirty = !status.isEmpty
 
-        var issue: String?
+        let health: WorktreeHealth
+        let issue: String?
         if branch == nil {
+            health = .needsAttention
             issue = "Detached HEAD; managed release requires a branch to preserve."
         } else if branch?.hasPrefix(ManagedWorktreeLayout.branchPrefix) == false {
+            health = .warning
             issue = "Branch does not use the managed xcode-worktree prefix."
+        } else {
+            health = .valid
+            issue = nil
         }
 
         let derivedData = safeDerivedData(at: candidate)
@@ -191,10 +199,18 @@ public struct WorktreeScanner: Sendable {
             branch: branch,
             commit: commit,
             isDirty: isDirty,
-            health: issue == nil ? .valid : .needsAttention,
+            health: health,
             issue: issue,
             derivedDataPath: derivedData
         )
+    }
+
+    private func healthSortOrder(_ health: WorktreeHealth) -> Int {
+        switch health {
+        case .valid: 0
+        case .warning: 1
+        case .needsAttention: 2
+        }
     }
 
     private func attention(

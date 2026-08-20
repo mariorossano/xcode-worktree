@@ -515,12 +515,20 @@ private struct BoardView: View {
             return "Needs attention"
         }
 
-        let valid = board.snapshot.items.filter { $0.health == .valid }.count
-        let attention = board.snapshot.items.count - valid + board.snapshot.warnings.count
+        let worktreeCount = board.snapshot.items.count
+        let warnings = board.snapshot.items.filter { $0.health == .warning }.count
+        let attention = board.snapshot.items.filter { $0.health == .needsAttention }.count
+            + board.snapshot.warnings.count
+        let worktrees = worktreeCount == 1 ? "1 Xcode worktree" : "\(worktreeCount) Xcode worktrees"
         if attention == 0 {
-            return valid == 1 ? "1 Xcode worktree" : "\(valid) Xcode worktrees"
+            if warnings == 0 {
+                return worktrees
+            }
+            let warningLabel = warnings == 1 ? "1 warning" : "\(warnings) warnings"
+            return "\(worktrees) · \(warningLabel)"
         }
-        return "\(valid) valid · \(attention) need attention"
+        let usable = board.snapshot.items.filter { $0.health.allowsActions }.count
+        return "\(usable) usable · \(attention) need attention"
     }
 
     private var emptyState: some View {
@@ -722,7 +730,7 @@ private struct AgentLaunchView: View {
 
     private var canLaunch: Bool {
         AgentCommandHistory.normalizedCommand(command) != nil
-            && worktree.health == .valid
+            && worktree.health.allowsActions
             && !board.launchingAgentIDs.contains(worktree.id)
     }
 
@@ -1068,11 +1076,13 @@ private struct WorktreeRow: View {
     private var rowContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                if worktree.health == .needsAttention {
+                if worktree.health != .valid {
                     Circle()
                         .fill(Color.orange)
                         .frame(width: 8, height: 8)
-                        .accessibilityLabel("Needs attention")
+                        .accessibilityLabel(
+                            worktree.health == .warning ? "Warning" : "Needs attention"
+                        )
                 }
 
                 Text(worktree.task)
@@ -1146,10 +1156,10 @@ private struct WorktreeRow: View {
                 }
                 .frame(width: 20, height: 20)
             }
-            .disabled(worktree.health != .valid || board.launchingAgentIDs.contains(worktree.id))
-            .help(worktree.health == .valid
+            .disabled(!worktree.health.allowsActions || board.launchingAgentIDs.contains(worktree.id))
+            .help(worktree.health.allowsActions
                   ? "Launch an agent in this worktree"
-                  : "This worktree must be valid before an agent can be launched")
+                  : "Resolve this worktree issue before launching an agent")
             .accessibilityLabel("Launch an agent in this worktree")
 
             Button {
@@ -1200,10 +1210,10 @@ private struct WorktreeRow: View {
                 }
                 .frame(width: 20, height: 20)
             }
-            .disabled(worktree.health != .valid || !board.releasingIDs.isEmpty)
-            .help(worktree.health == .valid
+            .disabled(!worktree.health.allowsActions || !board.releasingIDs.isEmpty)
+            .help(worktree.health.allowsActions
                   ? "Remove worktree and preserve branch"
-                  : "This worktree must be valid before it can be removed")
+                  : "Resolve this worktree issue before removing it")
             .accessibilityLabel("Remove worktree and preserve branch")
         }
         .buttonStyle(.borderless)

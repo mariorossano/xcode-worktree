@@ -7,7 +7,12 @@ public enum ManagedWorktreeLayout {
 
 public enum WorktreeHealth: String, Sendable {
     case valid
+    case warning
     case needsAttention
+
+    public var allowsActions: Bool {
+        self != .needsAttention
+    }
 }
 
 public struct ManagedWorktree: Identifiable, Equatable, Sendable {

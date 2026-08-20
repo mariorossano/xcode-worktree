@@ -9,6 +9,9 @@ final class WorktreeScannerTests: XCTestCase {
     func testManagedLayoutUsesXcodeWorktreeIdentifiers() {
         XCTAssertEqual(ManagedWorktreeLayout.rootDirectoryName, ".xcode-worktrees")
         XCTAssertEqual(ManagedWorktreeLayout.branchPrefix, "xcode-worktree/")
+        XCTAssertTrue(WorktreeHealth.valid.allowsActions)
+        XCTAssertTrue(WorktreeHealth.warning.allowsActions)
+        XCTAssertFalse(WorktreeHealth.needsAttention.allowsActions)
         XCTAssertEqual(
             WorktreeScanner.defaultRoot.lastPathComponent,
             ManagedWorktreeLayout.rootDirectoryName
@@ -83,6 +86,20 @@ final class WorktreeScannerTests: XCTestCase {
         XCTAssertGreaterThan(size.totalBytes, 0)
         XCTAssertGreaterThan(size.derivedDataBytes, 0)
         XCTAssertEqual(size.checkoutBytes, size.totalBytes - size.derivedDataBytes)
+    }
+
+    func testScannerReportsExternalBranchAsNonBlockingWarning() throws {
+        let fixture = try makeFixture()
+        defer { try? fileManager.removeItem(at: fixture.container) }
+        try git(["branch", "-m", "MXP-867-injectedvalues-adoption"], at: fixture.worktree)
+
+        let snapshot = WorktreeScanner(root: fixture.root).scan()
+        let item = try XCTUnwrap(snapshot.items.first)
+
+        XCTAssertEqual(item.branch, "MXP-867-injectedvalues-adoption")
+        XCTAssertEqual(item.health, .warning)
+        XCTAssertTrue(item.health.allowsActions)
+        XCTAssertEqual(item.issue, "Branch does not use the managed xcode-worktree prefix.")
     }
 
     func testScannerRejectsPermissiveRootWithoutChangingIt() throws {

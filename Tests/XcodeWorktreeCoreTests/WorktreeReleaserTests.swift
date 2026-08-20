@@ -202,6 +202,22 @@ final class WorktreeReleaserTests: XCTestCase {
         )
     }
 
+    func testReleaseAllowsExternalBranchAndPreservesIt() throws {
+        let branch = "MXP-867-injectedvalues-adoption"
+        let fixture = try makeFixture(managed: true, branch: branch)
+        defer { try? fileManager.removeItem(at: fixture.container) }
+        let expectedCommit = try gitOutput(["rev-parse", "HEAD"], at: fixture.worktree)
+
+        let result = try WorktreeReleaser(root: fixture.root).release(fixture.item)
+
+        XCTAssertEqual(result.branch, branch)
+        XCTAssertFalse(fileManager.fileExists(atPath: fixture.worktree.path))
+        XCTAssertEqual(
+            try gitOutput(["rev-parse", "--verify", "refs/heads/\(branch)^{commit}"], at: fixture.repository),
+            expectedCommit
+        )
+    }
+
     func testReleaseRefusesWorktreeOutsideManagedRoot() throws {
         let fixture = try makeFixture(managed: false)
         defer { try? fileManager.removeItem(at: fixture.container) }
@@ -237,12 +253,14 @@ final class WorktreeReleaserTests: XCTestCase {
         )
     }
 
-    private func makeFixture(managed: Bool) throws -> Fixture {
+    private func makeFixture(
+        managed: Bool,
+        branch: String = "xcode-worktree/feature-a-012345abcdef"
+    ) throws -> Fixture {
         let container = try temporaryDirectory()
         let repository = container.appendingPathComponent("source", isDirectory: true)
         let root = container.appendingPathComponent("root", isDirectory: true)
         let repositoryGroup = root.appendingPathComponent("repo", isDirectory: true)
-        let branch = "xcode-worktree/feature-a-012345abcdef"
         let worktree = managed
             ? repositoryGroup.appendingPathComponent("feature-a-012345abcdef", isDirectory: true)
             : container.appendingPathComponent("outside-worktree", isDirectory: true)
@@ -271,8 +289,10 @@ final class WorktreeReleaserTests: XCTestCase {
             branch: branch,
             commit: try gitOutput(["rev-parse", "--short=8", "HEAD"], at: worktree),
             isDirty: false,
-            health: .valid,
-            issue: nil,
+            health: branch.hasPrefix(ManagedWorktreeLayout.branchPrefix) ? .valid : .warning,
+            issue: branch.hasPrefix(ManagedWorktreeLayout.branchPrefix)
+                ? nil
+                : "Branch does not use the managed xcode-worktree prefix.",
             derivedDataPath: nil
         )
         return Fixture(

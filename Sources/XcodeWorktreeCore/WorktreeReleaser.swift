@@ -330,9 +330,6 @@ public struct WorktreeReleaser: Sendable {
         guard branchResult.terminationStatus == 0, !branch.isEmpty else {
             throw WorktreeReleaseError.refused("the worktree has no branch to preserve")
         }
-        guard branch.hasPrefix(ManagedWorktreeLayout.branchPrefix) else {
-            throw WorktreeReleaseError.refused("the branch does not use the managed xcode-worktree prefix")
-        }
 
         let commit = try git(
             ["rev-parse", "HEAD"],

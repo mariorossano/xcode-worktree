@@ -143,7 +143,7 @@ final class XcodeWorktreeBoard: ObservableObject {
     }
 
     func release(_ worktree: ManagedWorktree) {
-        guard worktree.health == .valid, releasingIDs.isEmpty else { return }
+        guard worktree.health.allowsActions, releasingIDs.isEmpty else { return }
         worktreeMutationGeneration &+= 1
         releasingIDs.insert(worktree.id)
         releaseError = nil
@@ -170,7 +170,7 @@ final class XcodeWorktreeBoard: ObservableObject {
         message: String,
         expectedPreview: WorktreeChangePreview
     ) {
-        guard worktree.health == .valid, releasingIDs.isEmpty else { return }
+        guard worktree.health.allowsActions, releasingIDs.isEmpty else { return }
         worktreeMutationGeneration &+= 1
         releasingIDs.insert(worktree.id)
         releaseError = nil
@@ -205,10 +205,10 @@ final class XcodeWorktreeBoard: ObservableObject {
     }
 
     func launchAgent(_ rawCommand: String, in worktree: ManagedWorktree) {
-        guard worktree.health == .valid,
+        guard worktree.health.allowsActions,
               !launchingAgentIDs.contains(worktree.id),
               let command = AgentCommandHistory.normalizedCommand(rawCommand) else {
-            agentLaunchError = "Enter a single-line command for a valid worktree."
+            agentLaunchError = "Enter a single-line command for a worktree that is safe to use."
             return
         }
 
